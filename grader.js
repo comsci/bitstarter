@@ -24,7 +24,7 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
-var HTMLFILE_DEFAULT = "index.html";
+var rest = require('restler');
 var CHECKSFILE_DEFAULT = "checks.json";
 
 var assertFileExists = function(infile) {
@@ -36,8 +36,24 @@ var assertFileExists = function(infile) {
     return instr;
 };
 
+var assertURLValid = function(inURL) {
+  // VALIDATION SKIP
+  return inURL;
+};
+
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
+};
+
+var cheerioURL = function(URL, checksfile, callback) {
+  rest.get(URL).on('complete', function(result) {
+    if (result instanceof Error) {
+      console.log("Error : " + result.message);
+      process.exit(1);
+    } else {
+      callback(cheerio.load(result), checksfile);
+    }
+  });
 };
 
 var loadChecks = function(checksfile) {
@@ -52,7 +68,26 @@ var checkHtmlFile = function(htmlfile, checksfile) {
         var present = $(checks[ii]).length > 0;
         out[checks[ii]] = present;
     }
-    return out;
+    return printJson(out);
+};
+
+var checkURL = function(URL, checksfile) {
+  cheerioURL(URL, checksfile, checkURLCallback);
+};
+
+var checkURLCallback = function($, checksfile) {
+    var checks = loadChecks(checksfile).sort();
+    var out = {};
+    for(var ii in checks) {
+        var present = $(checks[ii]).length > 0;
+        out[checks[ii]] = present;
+    }
+    return printJson(out);
+};
+
+var printJson = function(checkJson) {
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
 };
 
 var clone = function(fn) {
@@ -64,11 +99,16 @@ var clone = function(fn) {
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists))
+        .option('--url <URL>', 'Specify a URL to fetch', clone(assertURLValid))
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+    var checkJson = {};
+    if (program.file) {
+      checkHtmlFile(program.file, program.checks);
+    } else if (program.url) {
+      checkURL(program.url, program.checks);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
+    exports.checkURL = checkURL;
 }
