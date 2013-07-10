@@ -41,6 +41,8 @@ var assertURLValid = function(inURL) {
   return inURL;
 };
 
+// TODO use Async
+
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
 };
